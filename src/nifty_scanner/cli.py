@@ -71,18 +71,27 @@ def cmd_update(args) -> None:
     print(f"[update] latest={None if last is None else last.date()} rows={len(df)}")
 
 
+def _ensure_history(universe):
+    """For manual PC runs: bootstrap history on first use, else append latest days."""
+    existing = hist.load()
+    n_dates = int(existing["date"].nunique()) if not existing.empty else 0
+    if n_dates < config.DATA["min_history_rows"]:
+        log.info("history has %d trading day(s) (< %d needed); backfilling once "
+                 "(this takes a few minutes the first time)...", n_dates, config.DATA["min_history_rows"])
+        return hist.backfill(universe)
+    return hist.update(universe, days_back=7)
+
+
 def cmd_run_eod(args) -> None:
     if args.demo:
         universe = _demo_universe()
         history = hist.generate_demo(universe, days=400, sector_bias=DEMO_SECTOR_BIAS)
     else:
         universe = uni.load_universe(refresh=False)
-        history = hist.update(universe, days_back=7)
-        if history.empty:
-            history = hist.load()
+        history = _ensure_history(universe)
 
     if history.empty:
-        print("[eod] no history available. Run 'nifty-scanner backfill' first.")
+        print("[eod] no history available (network blocked or market holiday). Try again later.")
         return
 
     benchmark = hist.equal_weight_benchmark(history)
@@ -111,12 +120,13 @@ def cmd_run_eod(args) -> None:
     print(f"[eod] scanned={ctx['stats']['scanned']} passed={ctx['stats']['passed']} "
           f"candidates={len(candidates)} -> {config.SITE_DIR/'index.html'}")
 
+    print(f"[eod] open the dashboard: {config.SITE_DIR / 'index.html'}")
     if not args.no_email:
         subject = f"[{config.REPORT['title']}] EOD Swing Digest - {ctx['date_str']}"
         html = render.render_eod_email(ctx)
         status = email_send.send_email(subject, html, EmailConfig.from_env(), attachments=[render.screener_csv_path()])
         print(f"[eod] email: {status}")
-    if not args.no_deploy:
+    if args.deploy:
         print(f"[eod] deploy: {deploy.deploy_dir(config.SITE_DIR, FtpConfig.from_env())}")
 
 
@@ -143,7 +153,7 @@ def cmd_run_news(args) -> None:
         subject = f"[{config.REPORT['title']}] Pre-Market Brief - {ctx['date_str']}"
         html = render.render_news_email(ctx)
         print(f"[news] email: {email_send.send_email(subject, html, EmailConfig.from_env())}")
-    if not args.no_deploy:
+    if args.deploy:
         print(f"[news] deploy: {deploy.deploy_dir(config.SITE_DIR, FtpConfig.from_env())}")
 
 
@@ -164,16 +174,16 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument("--days", type=int, default=7)
     up.set_defaults(func=cmd_update)
 
-    eod = sub.add_parser("run-eod", help="screener + sectors + dashboard + email + deploy")
+    eod = sub.add_parser("run-eod", help="screener + sectors + local dashboard + email")
     eod.add_argument("--demo", action="store_true", help="offline synthetic data (no network)")
-    eod.add_argument("--no-email", action="store_true")
-    eod.add_argument("--no-deploy", action="store_true")
+    eod.add_argument("--no-email", action="store_true", help="build the dashboard but do not send email")
+    eod.add_argument("--deploy", action="store_true", help="also publish the dashboard to Hostinger via FTP (optional)")
     eod.set_defaults(func=cmd_run_eod)
 
-    nw = sub.add_parser("run-news", help="global cues + consolidated news brief + email + deploy")
+    nw = sub.add_parser("run-news", help="global cues + consolidated news brief + email")
     nw.add_argument("--demo", action="store_true", help="offline synthetic data (no network)")
-    nw.add_argument("--no-email", action="store_true")
-    nw.add_argument("--no-deploy", action="store_true")
+    nw.add_argument("--no-email", action="store_true", help="build the page but do not send email")
+    nw.add_argument("--deploy", action="store_true", help="also publish to Hostinger via FTP (optional)")
     nw.set_defaults(func=cmd_run_news)
     return p
 

@@ -1,5 +1,6 @@
 name: Pre-Market Brief
 
+# OPTIONAL cloud automation (primary usage is manual on your PC - see README).
 # Morning consolidated global news + overnight cues (useful for intraday).
 # GitHub cron is UTC; 02:30 UTC = 08:00 IST.
 on:
@@ -21,13 +22,6 @@ jobs:
       SMTP_USE_SSL: ${{ secrets.SMTP_USE_SSL }}
       EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
-      FTP_HOST: ${{ secrets.FTP_HOST }}
-      FTP_PORT: ${{ secrets.FTP_PORT }}
-      FTP_USER: ${{ secrets.FTP_USER }}
-      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-      FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
-      FTP_USE_TLS: ${{ secrets.FTP_USE_TLS }}
-      SITE_URL: ${{ secrets.SITE_URL }}
     steps:
       - uses: actions/checkout@v4
 
