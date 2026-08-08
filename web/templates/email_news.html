@@ -1,0 +1,49 @@
+{% extends "email_base.html" %}
+{% block heading %}{{ title }} &mdash; Pre-Market Brief{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>Overnight &amp; Global Cues</h2>
+  {% if cues %}
+  <table>
+    <thead><tr><th>Market / Asset</th><th>Last</th><th>Change</th></tr></thead>
+    <tbody>
+      {% for c in cues %}
+      <tr>
+        <td>{{ c.label }} <span class="muted">({{ c.ticker }})</span></td>
+        <td>{{ c.last if c.last is not none else '-' }}</td>
+        <td class="{% if c.change_pct is none %}muted{% elif c.change_pct >= 0 %}pos{% else %}neg{% endif %}">{{ c.change_pct | fmt_pct }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Cues unavailable.</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Consolidated Headlines</h2>
+  {% set ns = namespace(any=false) %}
+  {% for category in categories %}
+    {% set items = news.get(category, []) %}
+    {% if items %}
+      {% set ns.any = true %}
+      <h3>{{ category }}</h3>
+      <table>
+        <thead><tr><th>Time</th><th>Headline</th><th>Source</th></tr></thead>
+        <tbody>
+          {% for n in items %}
+          <tr>
+            <td class="muted">{{ n.published | fmt_dt }}</td>
+            <td>{% if n.link and n.link != '#' %}<a href="{{ n.link }}">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</td>
+            <td class="muted">{{ n.source }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% endfor %}
+  {% if not ns.any %}<div class="empty">No headlines fetched.</div>{% endif %}
+</div>
+{% endblock %}

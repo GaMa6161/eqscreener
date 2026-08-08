@@ -1,0 +1,104 @@
+{% extends "email_base.html" %}
+{% block heading %}{{ title }} &mdash; EOD Swing Digest{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>Summary</h2>
+  <p class="muted">
+    Scanned <strong>{{ stats.scanned }}</strong> stocks &middot;
+    <strong>{{ stats.passed }}</strong> passed all swing filters &middot;
+    benchmark {{ benchmark_label }}.
+  </p>
+</div>
+
+<div class="card">
+  <h2>Swing Candidates (ranked by score)</h2>
+  {% if candidates %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Symbol</th><th>Sector</th><th>Close</th><th>RSI</th><th>ADX</th>
+        <th>Vol&times;</th><th>RS</th><th>3M%</th><th>Stop</th><th>Targets</th>
+        <th>Risk%</th><th>Qty</th><th>Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in candidates %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><strong>{{ r.symbol }}</strong><br><span class="muted">{{ r.name }}</span>
+          {% if r.setups %}<br>{% for t in r.setups %}<span class="tag">{{ t }}</span>{% endfor %}{% endif %}
+        </td>
+        <td>{{ r.sector }}</td>
+        <td>{{ r.close }}</td>
+        <td>{{ r.rsi }}</td>
+        <td>{{ r.adx }}</td>
+        <td>{{ r.vol_mult }}</td>
+        <td>{{ r.rs }}</td>
+        <td class="{{ 'pos' if r.ret_63 is not none and r.ret_63 >= 0 else 'neg' }}">{{ r.ret_63 }}</td>
+        <td>{{ r.stop }}</td>
+        <td>{% if r.targets %}{{ r.targets | join(' / ') }}{% else %}-{% endif %}</td>
+        <td>{{ r.risk_pct }}%</td>
+        <td>{{ r.qty }}</td>
+        <td><strong>{{ r.score }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Stop = entry &minus; 2&times;ATR; targets at 2R/3R. Qty sized to risk ~{{ risk_pct_per_trade }}% of capital per trade. Verify before acting.</p>
+  {% else %}
+  <div class="empty">No stocks passed all filters today. In choppy/bearish markets this is normal.</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Sector Rotation</h2>
+  {% if sector_ranking %}
+  <table>
+    <thead>
+      <tr><th>Rank</th><th>Sector</th><th>Stocks</th><th>1M avg%</th><th>3M avg%</th>
+      <th>Breadth &gt;50EMA</th><th>Passing</th><th>Momentum</th></tr>
+    </thead>
+    <tbody>
+      {% for s in sector_ranking %}
+      <tr>
+        <td>{{ s.rank }}</td>
+        <td><strong>{{ s.sector }}</strong></td>
+        <td>{{ s.constituents }}</td>
+        <td class="{{ 'pos' if s.avg_ret_21 is not none and s.avg_ret_21 >= 0 else 'neg' }}">{{ s.avg_ret_21 }}</td>
+        <td class="{{ 'pos' if s.avg_ret_63 is not none and s.avg_ret_63 >= 0 else 'neg' }}">{{ s.avg_ret_63 }}</td>
+        <td>{{ s.breadth_above_ema50 }}%</td>
+        <td>{{ s.passing }}</td>
+        <td><strong>{{ s.momentum_score }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Not enough data for sector ranking.</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Sectorial Options Ideas <span class="muted">(defined-risk only)</span></h2>
+  {% if options_ideas %}
+  <table>
+    <thead><tr><th>Sector</th><th>Bias</th><th>Instrument</th><th>Structure</th><th>Watchlist</th></tr></thead>
+    <tbody>
+      {% for o in options_ideas %}
+      <tr>
+        <td><strong>{{ o.sector }}</strong><br><span class="muted">{{ o.rationale }}</span></td>
+        <td><span class="pill {{ 'bull' if 'Bull' in o.bias else 'bear' }}">{{ o.bias }}</span></td>
+        <td>{{ o.instrument }}</td>
+        <td>{{ o.structure }}</td>
+        <td>{{ o.watchlist }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Size every trade by max risk (1&ndash;2% of capital). Prefer spreads over naked options. Strike/expiry &amp; greeks to be finalised in your broker/analysis layer.</p>
+  {% else %}
+  <div class="empty">No sector ideas generated.</div>
+  {% endif %}
+</div>
+{% endblock %}

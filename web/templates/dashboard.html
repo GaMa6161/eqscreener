@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }} &mdash; Dashboard</title>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <h1>{{ title }}</h1>
+    <div class="sub">{{ date_str }} &middot; updated {{ generated_at }} IST</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="stats">
+    <div class="stat"><div class="n">{{ stats.scanned }}</div><div class="l">Scanned</div></div>
+    <div class="stat"><div class="n">{{ stats.passed }}</div><div class="l">Passed filters</div></div>
+    <div class="stat"><div class="n">{{ candidates|length }}</div><div class="l">Top candidates</div></div>
+    <div class="stat"><div class="n">{{ sector_ranking|length }}</div><div class="l">Sectors ranked</div></div>
+  </section>
+  <p class="dl"><a href="screener.csv">Download screener CSV</a> &middot; <a href="screener.json">JSON</a> &middot; benchmark {{ benchmark_label }}</p>
+
+  <section class="card">
+    <h2>Swing Candidates</h2>
+    {% if candidates %}
+    <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Symbol</th><th>Sector</th><th>Close</th><th>RSI</th><th>ADX</th>
+        <th>Vol&times;</th><th>RS</th><th>1M%</th><th>3M%</th><th>Stop</th><th>Targets</th>
+        <th>Risk%</th><th>Qty</th><th>Score</th><th>Setups</th>
+      </tr></thead>
+      <tbody>
+        {% for r in candidates %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ r.symbol }}</strong><div class="muted">{{ r.name }}</div></td>
+          <td>{{ r.sector }}</td>
+          <td>{{ r.close }}</td>
+          <td>{{ r.rsi }}</td>
+          <td>{{ r.adx }}</td>
+          <td>{{ r.vol_mult }}</td>
+          <td>{{ r.rs }}</td>
+          <td class="{{ 'pos' if r.ret_21 is not none and r.ret_21 >= 0 else 'neg' }}">{{ r.ret_21 }}</td>
+          <td class="{{ 'pos' if r.ret_63 is not none and r.ret_63 >= 0 else 'neg' }}">{{ r.ret_63 }}</td>
+          <td>{{ r.stop }}</td>
+          <td>{% if r.targets %}{{ r.targets | join(' / ') }}{% else %}-{% endif %}</td>
+          <td>{{ r.risk_pct }}%</td>
+          <td>{{ r.qty }}</td>
+          <td><strong>{{ r.score }}</strong></td>
+          <td>{% if r.setups %}{% for t in r.setups %}<span class="tag">{{ t }}</span>{% endfor %}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="empty">No candidates passed all filters today.</div>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Sector Rotation</h2>
+    {% if sector_ranking %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Rank</th><th>Sector</th><th>Stocks</th><th>1M avg%</th><th>3M avg%</th><th>Breadth &gt;50EMA</th><th>Passing</th><th>Momentum</th></tr></thead>
+      <tbody>
+        {% for s in sector_ranking %}
+        <tr>
+          <td>{{ s.rank }}</td><td><strong>{{ s.sector }}</strong></td><td>{{ s.constituents }}</td>
+          <td class="{{ 'pos' if s.avg_ret_21 is not none and s.avg_ret_21 >= 0 else 'neg' }}">{{ s.avg_ret_21 }}</td>
+          <td class="{{ 'pos' if s.avg_ret_63 is not none and s.avg_ret_63 >= 0 else 'neg' }}">{{ s.avg_ret_63 }}</td>
+          <td>{{ s.breadth_above_ema50 }}%</td><td>{{ s.passing }}</td>
+          <td><strong class="{{ 'pos' if s.momentum_score is not none and s.momentum_score >= 0 else 'neg' }}">{{ s.momentum_score }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="empty">Not enough data for sector ranking.</div>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Sectorial Options Ideas <span class="muted">(defined-risk only)</span></h2>
+    {% if options_ideas %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Sector</th><th>Bias</th><th>Instrument</th><th>Structure</th><th>Watchlist</th></tr></thead>
+      <tbody>
+        {% for o in options_ideas %}
+        <tr>
+          <td><strong>{{ o.sector }}</strong><div class="muted">{{ o.rationale }}</div></td>
+          <td><span class="pill {{ 'bull' if 'Bull' in o.bias else 'bear' }}">{{ o.bias }}</span></td>
+          <td>{{ o.instrument }}</td><td>{{ o.structure }}</td><td>{{ o.watchlist }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="empty">No sector ideas generated.</div>{% endif %}
+  </section>
+
+  {% if cues %}
+  <section class="card">
+    <h2>Overnight &amp; Global Cues</h2>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Market / Asset</th><th>Last</th><th>Change</th></tr></thead>
+      <tbody>
+        {% for c in cues %}
+        <tr><td>{{ c.label }} <span class="muted">({{ c.ticker }})</span></td>
+        <td>{{ c.last if c.last is not none else '-' }}</td>
+        <td class="{% if c.change_pct is none %}muted{% elif c.change_pct >= 0 %}pos{% else %}neg{% endif %}">{{ c.change_pct | fmt_pct }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <h2>Consolidated Headlines</h2>
+    {% set ns = namespace(any=false) %}
+    {% for category in categories %}
+      {% set items = news.get(category, []) if news else [] %}
+      {% if items %}
+        {% set ns.any = true %}
+        <h3>{{ category }}</h3>
+        <ul class="news">
+          {% for n in items %}
+          <li><span class="muted">{{ n.published | fmt_dt }}</span>
+            {% if n.link and n.link != '#' %}<a href="{{ n.link }}">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+            <span class="src">{{ n.source }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endfor %}
+    {% if not ns.any %}<div class="empty">No headlines fetched.</div>{% endif %}
+  </section>
+
+  <section class="card disclaimer">{{ disclaimer }}</section>
+  <p class="foot">{{ title }} &middot; automated static dashboard</p>
+</main>
+</body>
+</html>

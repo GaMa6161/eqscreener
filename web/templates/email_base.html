@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }}</title>
+<style>
+  body { margin:0; padding:0; background:#f4f6f8; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:#1f2933; }
+  .wrap { max-width:860px; margin:0 auto; padding:20px; }
+  .card { background:#ffffff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.08); padding:22px; margin-bottom:18px; }
+  .header { background:#0f2942; color:#fff; border-radius:10px; padding:22px; margin-bottom:18px; }
+  .header h1 { margin:0 0 4px; font-size:20px; }
+  .header .sub { color:#9fb3c8; font-size:13px; }
+  h2 { font-size:16px; margin:0 0 12px; color:#0f2942; border-left:4px solid #2f80ed; padding-left:10px; }
+  h3 { font-size:13px; margin:16px 0 6px; color:#334155; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; background:#eef2f7; color:#334155; padding:8px 9px; font-weight:600; border-bottom:2px solid #dbe3ec; }
+  td { padding:7px 9px; border-bottom:1px solid #eef2f7; vertical-align:top; }
+  tr:nth-child(even) td { background:#fbfcfe; }
+  .pos { color:#1b8a5a; font-weight:600; }
+  .neg { color:#c0392b; font-weight:600; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .bull { background:#e3f6ec; color:#1b8a5a; }
+  .bear { background:#fce8e6; color:#c0392b; }
+  .tag { display:inline-block; background:#eef2f7; color:#334155; border-radius:10px; padding:1px 7px; font-size:10.5px; margin:1px 2px 1px 0; }
+  .muted { color:#7b8794; font-size:12px; }
+  .disclaimer { font-size:11px; color:#7b8794; line-height:1.5; background:#fff8e6; border:1px solid #f6e2a8; border-radius:8px; padding:12px; }
+  .empty { color:#7b8794; font-style:italic; padding:10px 0; }
+  a { color:#2f80ed; text-decoration:none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>{% block heading %}{{ title }}{% endblock %}</h1>
+      <div class="sub">{% block subheading %}{{ date_str }}{% endblock %} &middot; generated {{ generated_at }} IST
+        {% if site_url %}&middot; <a href="{{ site_url }}" style="color:#7fb2f0;">open dashboard</a>{% endif %}
+      </div>
+    </div>
+    {% block content %}{% endblock %}
+    <div class="card"><div class="disclaimer">{{ disclaimer }}</div></div>
+    <p class="muted" style="text-align:center;">{{ title }} &middot; automated digest</p>
+  </div>
+</body>
+</html>

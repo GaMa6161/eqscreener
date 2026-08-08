@@ -1,0 +1,23 @@
+# =============================================================================
+# OPTIONAL local/VPS cron schedule for Nifty Eq Scanner.
+#
+# NOTE: The recommended, fully-free setup is GitHub Actions (see
+# .github/workflows/eod.yml and premarket.yml) because Hostinger *shared*
+# hosting cannot run Python. Use this cron only if you run the pipeline on your
+# own always-on machine or a VPS.
+#
+# cron uses the SERVER timezone (often UTC). IST = UTC + 5:30:
+#   19:00 IST -> 13:30 UTC   (EOD digest, after NSE bhavcopy is published)
+#   08:00 IST -> 02:30 UTC   (pre-market brief, before the open)
+#
+# Install with:  crontab -e   (paste, edit PROJECT path, save)
+# =============================================================================
+
+PROJECT=/home/youruser/nifty-eq-scanner
+PY=$PROJECT/.venv/bin/python
+
+# EOD swing digest — weekdays 13:30 UTC (19:00 IST)
+30 13 * * 1-5 cd $PROJECT && $PY -m nifty_scanner.cli run-eod  >> $PROJECT/output/eod.log 2>&1
+
+# Pre-market brief — weekdays 02:30 UTC (08:00 IST)
+30 2  * * 1-5 cd $PROJECT && $PY -m nifty_scanner.cli run-news >> $PROJECT/output/premkt.log 2>&1

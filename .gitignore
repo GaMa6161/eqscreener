@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.tmp/
+
+# Secrets
+.env
+
+# Generated output (dashboard is rebuilt each run and deployed via FTP)
+output/
+
+# Transient caches (raw bhavcopy zips etc). The Parquet history store under
+# data/history/ IS committed on purpose so it persists between CI runs.
+data/cache/
+cache/
+
+# Distribution archives
+*.zip
+.pkg/
+
+# OS
+.DS_Store

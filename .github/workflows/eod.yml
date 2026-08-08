@@ -1,0 +1,66 @@
+name: EOD Swing Screener
+
+# Runs after the NSE bhavcopy is published. GitHub cron is UTC; 13:30 UTC = 19:00 IST.
+# Also runnable on demand from the Actions tab.
+on:
+  schedule:
+    - cron: "30 13 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write        # commit the updated Parquet history back to the repo
+
+concurrency:
+  group: eod
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_USE_SSL: ${{ secrets.SMTP_USE_SSL }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_PORT: ${{ secrets.FTP_PORT }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+      FTP_USE_TLS: ${{ secrets.FTP_USE_TLS }}
+      ACCOUNT_CAPITAL: ${{ secrets.ACCOUNT_CAPITAL }}
+      RISK_PCT_PER_TRADE: ${{ secrets.RISK_PCT_PER_TRADE }}
+      SITE_URL: ${{ secrets.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Update universe + history (idempotent; full backfill on first run)
+        run: |
+          nifty-scanner build-universe
+          nifty-scanner backfill
+
+      - name: Run EOD screener (render dashboard, email, deploy)
+        run: nifty-scanner run-eod
+
+      - name: Commit updated history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/history data/universe
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "data: EOD history update $(date -u +%F)"
+            git push
+          fi
