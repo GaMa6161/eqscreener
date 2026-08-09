@@ -50,7 +50,11 @@ def deploy_dir(local_dir: Path, cfg: FtpConfig, dry_run: bool = False) -> str:
     if not cfg.is_configured:
         return "skipped (FTP not configured)"
 
-    ftp = _connect(cfg)
+    try:
+        ftp = _connect(cfg)
+    except Exception as exc:
+        return f"deploy skipped - could not connect to {cfg.host}: {exc}"
+
     count = 0
     try:
         _ensure_dir(ftp, cfg.remote_dir)
@@ -64,6 +68,8 @@ def deploy_dir(local_dir: Path, cfg: FtpConfig, dry_run: bool = False) -> str:
             with open(path, "rb") as fh:
                 ftp.storbinary(f"STOR {remote}", fh)
             count += 1
+    except Exception as exc:
+        return f"deploy error after {count} file(s): {exc}"
     finally:
         try:
             ftp.quit()

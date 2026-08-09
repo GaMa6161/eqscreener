@@ -10,6 +10,7 @@ venv/
 
 # Secrets
 .env
+GITHUB_ACTIONS_HANDOFF.md
 
 # Generated output (dashboard is rebuilt each run and deployed via FTP)
 output/

@@ -1,14 +1,9 @@
 # Nifty Eq Scanner
 
-An **end-of-day (EOD) swing screener for the Nifty 500**, with **sector-rotation
-ranking**, **defined-risk sectorial options ideas**, a **consolidated global-news
-brief** (useful for intraday), a **static web dashboard**, and **automated email
-digests**.
-
-It is designed for **Hostinger shared hosting**. Because shared hosting cannot run
-Python, the pipeline **computes for free on GitHub Actions** and only publishes a
-static dashboard to Hostinger (over FTP) and sends email through your Hostinger
-mailbox (SMTP). No VPS required.
+An **end-of-day (EOD) swing screener for the Nifty 500** with **sector-rotation
+ranking**, **defined-risk sectorial options ideas**, and a **consolidated global
+news brief**. You **run it manually on your PC** and it **emails you the digest**
+(and writes a local HTML dashboard you can open in a browser).
 
 > **Not investment advice.** Signals are produced by mechanical rules and can be
 > wrong. Options ideas are directional scaffolding only. This is an engineering /
@@ -16,122 +11,134 @@ mailbox (SMTP). No VPS required.
 
 ---
 
-## Architecture
+## What it does
 
-```mermaid
-flowchart TD
-  subgraph GHA [GitHub Actions - free scheduled compute]
-    A["Fetch EOD data: NSE UDiFF bhavcopy"] --> B["Append to Parquet history store"]
-    B --> C["Indicators: EMA/RSI/MACD/ADX/ATR/RS"]
-    C --> D["Swing screener: rank + ATR stops/targets"]
-    C --> E["Sector rotation -> options bias"]
-    F["Fetch news: RSS + global cues"] --> G["Consolidate"]
-    D --> H["Render dashboard + JSON/CSV + email"]
-    E --> H
-    G --> H
-  end
-  H --> I["FTP deploy to Hostinger public_html"]
-  H --> J["SMTP email via Hostinger mailbox"]
-  I --> K["Website: screener, sectors, news"]
-  J --> L["Your inbox: EOD digest + morning brief"]
+Two commands you run when you want them:
+
+| Command | When | Contents |
+|---------|------|----------|
+| `run-eod` | after market close (bhavcopy ~6-7pm IST) | ranked swing candidates (with ATR stops/targets + position sizing), sector rotation, sectorial options ideas -> **emailed** + `output/site/index.html` |
+| `run-news` | before the open | overnight global cues (US/Asia/crude/gold/USDINR/VIX) + consolidated news headlines -> **emailed** + `output/site/premarket.html` |
+
+Everything runs locally on your machine. No server, no hosting required.
+
+---
+
+## Quickstart (manual, on your PC)
+
+Requires Python 3.11+ (works on macOS / Windows / Linux).
+
+```bash
+# 1) Set up a virtual environment + install
+python3 -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -e '.[extras]'           # extras = yfinance, for the overnight cues
+
+# 2) See a full sample instantly (offline synthetic data, no network, no email):
+nifty-scanner run-eod --demo --no-email
+open output/site/index.html          # macOS  (Windows: start ...; Linux: xdg-open ...)
+
+# 3) Configure email: copy .env.example -> .env and fill the SMTP section
+cp .env.example .env
+#    (Gmail: use an App Password, not your normal password)
+
+# 4) Run for real. The FIRST run auto-downloads ~9 months of history
+#    (a few minutes); later runs just add the latest day.
+nifty-scanner run-eod                 # screens + emails you the digest
+nifty-scanner run-news                # global cues + news brief, emailed
 ```
 
-Two scheduled jobs:
+Or use the launcher script:
 
-| Job | When (IST) | Contents |
-|-----|-----------|----------|
-| `run-eod` | ~19:00 (after NSE bhavcopy) | Swing candidates (ranked), sector rotation, sectorial options ideas + web dashboard |
-| `run-news` | ~08:00 (before open) | Overnight global cues (US/Asia/crude/gold/USDINR/VIX) + consolidated news headlines |
+```bash
+./scripts/run_local.sh eod     # or: news  |  both
+```
+
+If you don't configure `.env`, everything still runs and writes the dashboard to
+`output/site/` - it just prints `email: dry-run (SMTP not configured)` instead of
+sending.
+
+### Commands
+
+| Command | What it does |
+|---------|--------------|
+| `nifty-scanner run-eod [--demo] [--no-email]` | screener + sectors + dashboard, emailed |
+| `nifty-scanner run-news [--demo] [--no-email]` | cues + news brief, emailed |
+| `nifty-scanner backfill [--days 420]` | (optional) pre-download history; run-eod does this automatically |
+| `nifty-scanner build-universe [--refresh]` | (optional) refresh the Nifty 500 list |
+
+`--demo` = offline synthetic data. `--no-email` = build files but don't send.
+`--deploy` = *also* upload the dashboard to a website via FTP (optional, see below).
+
+---
+
+## Email setup
+
+Fill the SMTP section of `.env`. Common choices:
+
+- **Gmail** - `smtp.gmail.com` : `465`, and use an **App Password**
+  (Google Account -> Security -> 2-Step Verification -> App passwords). Your normal
+  password will not work.
+- **Outlook** - `smtp-mail.outlook.com` : `587` with `SMTP_USE_SSL=false`.
+- **Hostinger / other mailbox** - `smtp.hostinger.com` : `465`.
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=you@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_USE_SSL=true
+EMAIL_FROM=you@gmail.com
+EMAIL_TO=you@gmail.com,friend@example.com
+```
+
+The EOD email includes the ranked table and attaches `screener.csv`.
 
 ---
 
 ## How data is fetched (all free)
 
-- **EOD equity prices** - the official **NSE UDiFF bhavcopy** (one zipped CSV per
-  trading day) from `nsearchives.nseindia.com`, which is not behind Cloudflare and
-  works from any IP incl. CI. Parsed and appended to a **Parquet** history store
-  that accumulates across runs. See `src/nifty_scanner/data/bhavcopy.py` and
-  `history.py`.
-- **Universe + sectors** - the official **Nifty 500 constituent CSV**; its
-  `Industry` column doubles as the sector map. See `data/universe.py`.
-- **Relative strength** - benchmarked against a **self-contained equal-weight
-  index** built from the universe (never depends on an external feed).
-- **News** - free **RSS feeds** (ET Markets, Moneycontrol, Business Standard,
-  Livemint, CNBC, Yahoo Finance, MarketWatch, Investing.com, OilPrice), grouped
-  into India / Global / Commodities / Currencies. See `news/feeds.py`.
-- **Overnight cues** - optional, via `yfinance` (indices, crude, gold, USD/INR,
-  India VIX). Degrades gracefully if unavailable. See `news/cues.py`.
+- **EOD prices** - the official **NSE UDiFF bhavcopy** (one zipped CSV per trading
+  day) from `nsearchives.nseindia.com`, parsed and appended to a local **Parquet**
+  history store (`data/history/ohlcv.parquet`) that grows over time.
+- **Universe + sectors** - the official **Nifty 500 constituent CSV** (its
+  `Industry` column is the sector map).
+- **Relative strength** - benchmarked against a self-contained equal-weight index
+  built from the universe (no external feed needed).
+- **News** - free **RSS feeds** grouped India / Global / Commodities / Currencies.
+- **Overnight cues** - via `yfinance` (indices, crude, gold, USD/INR, India VIX).
 
-**Options data note:** reliable live option chains / greeks / IV are not available
-for free from a server IP, so sectorial options output stays at the
-directional-bias + defined-risk-structure level (e.g. "IT leading -> bull call
-spread on NIFTY IT"). Exact strikes/greeks need a broker API (Kite/Upstox/Dhan) -
-a clean future upgrade.
+**Options note:** free live option chains / greeks / IV aren't reliably available,
+so sectorial options output is directional-bias + defined-risk structure (e.g. "IT
+leading -> bull call spread on NIFTY IT"). Exact strikes/greeks need a broker API
+(Kite/Upstox/Dhan) - a clean future upgrade.
 
 ---
 
-## Project structure
+## Scheduling it automatically (optional)
 
-```
-.
-├── pyproject.toml              # package + `nifty-scanner` CLI entry point
-├── requirements.txt
-├── .env.example                # SMTP + FTP + sizing (copy to .env)
-├── run_eod.py / run_premarket.py   # thin wrappers around the CLI (local/cron)
-├── data/
-│   ├── universe/nifty500.csv   # downloaded list + sector map (cached)
-│   ├── universe_nifty50.csv    # offline fallback subset
-│   └── history/ohlcv.parquet   # committed history store (grows via CI)
-├── src/nifty_scanner/
-│   ├── config.py               # thresholds, universe, feeds, schedules
-│   ├── utils.py                # HTTP session, logging, IST time
-│   ├── indicators.py           # EMA/RSI/MACD/ADX/ATR/RS (pure pandas)
-│   ├── data/{bhavcopy,universe,history}.py
-│   ├── screener/{swing,sectors}.py
-│   ├── news/{feeds,cues}.py
-│   ├── report/{render,email_send,deploy}.py
-│   └── cli.py                  # build-universe | backfill | update | run-eod | run-news
-├── web/templates/*.html        # email + dashboard templates
-├── web/static/style.css
-├── .github/workflows/{eod,premarket}.yml
-├── tests/test_indicators.py
-└── scripts/crontab.example     # optional local/VPS cron
-```
+You still launch it yourself, but if you want it hands-off on your PC:
+
+- **macOS/Linux cron** - see `scripts/crontab.example`.
+- **macOS** can also use `launchd`; **Windows** can use Task Scheduler to run
+  `python -m nifty_scanner.cli run-eod`.
+
+Your PC must be awake at the scheduled time.
 
 ---
 
-## Quickstart (local)
+## Publishing the dashboard to a website (optional)
+
+The dashboard is always written to `output/site/`. If you also want it online, add
+the FTP section to `.env` and run with `--deploy`:
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .            # installs deps + the `nifty-scanner` command
-# optional (overnight cues): pip install -e '.[extras]'
-
-# 1) Offline demo - synthetic data, no network, no email/deploy:
-nifty-scanner run-eod  --demo --no-email --no-deploy
-nifty-scanner run-news --demo --no-email --no-deploy
-open output/site/index.html            # macOS (xdg-open on Linux)
-
-# 2) Live data: bootstrap history once (downloads ~9 months of bhavcopies), then run:
-nifty-scanner build-universe
-nifty-scanner backfill                  # one-time, a few minutes
-nifty-scanner run-eod --no-email --no-deploy
-
-# 3) Live + email + deploy (after configuring .env):
-nifty-scanner run-eod
+nifty-scanner run-eod --deploy
 ```
 
-Run tests: `python tests/test_indicators.py`.
-
-### CLI reference
-
-| Command | What it does |
-|---------|--------------|
-| `build-universe [--refresh]` | download/cache the Nifty 500 list + sectors |
-| `backfill [--days 420]` | bootstrap the Parquet history (idempotent; skips days already stored) |
-| `update [--days 7]` | append the latest trading day(s) |
-| `run-eod [--demo] [--no-email] [--no-deploy]` | screener + sectors + dashboard + email + deploy |
-| `run-news [--demo] [--no-email] [--no-deploy]` | cues + news brief + email + deploy |
+There are also optional GitHub Actions workflows (`.github/workflows/`) that can run
+the emails in the cloud on a schedule - enable them only if you want that; they are
+not needed for manual PC use.
 
 ---
 
@@ -140,80 +147,41 @@ Run tests: `python tests/test_indicators.py`.
 - **`src/nifty_scanner/config.py`** - all tunables: screener thresholds (RSI zone,
   EMA trend gates, volume multiple, RS lookback, liquidity floor, ATR stop/targets),
   sector settings + index-option map, RSS feeds, cue tickers, disclaimer.
-- **`.env`** - copy from `.env.example` and fill secrets (never commit it).
-
-### Email (Hostinger mailbox)
-
-```
-SMTP_HOST=smtp.hostinger.com
-SMTP_PORT=465
-SMTP_USER=you@yourdomain.com
-SMTP_PASSWORD=your-mailbox-password
-SMTP_USE_SSL=true
-EMAIL_FROM=you@yourdomain.com
-EMAIL_TO=you@yourdomain.com,friend@example.com
-```
-
-### Publishing the dashboard (Hostinger FTP)
-
-```
-FTP_HOST=ftp.yourdomain.com          # hPanel -> Files -> FTP Accounts
-FTP_USER=...
-FTP_PASSWORD=...
-FTP_REMOTE_DIR=public_html           # or public_html/scanner for a subfolder
-FTP_USE_TLS=true
-SITE_URL=https://yourdomain.com      # optional; shown as a link in emails
-```
+- **`.env`** - copy from `.env.example`; SMTP is all you need for manual use. Never
+  commit `.env`.
 
 ---
 
-## Deploying with GitHub Actions (recommended, free)
+## Project structure
 
-1. Push this repo to GitHub.
-2. **Settings -> Secrets and variables -> Actions** and add the secrets:
-   `SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_USE_SSL, EMAIL_FROM,
-   EMAIL_TO, FTP_HOST, FTP_PORT, FTP_USER, FTP_PASSWORD, FTP_REMOTE_DIR,
-   FTP_USE_TLS, ACCOUNT_CAPITAL, RISK_PCT_PER_TRADE, SITE_URL`.
-3. Open the **Actions** tab and run **EOD Swing Screener** once manually
-   (`workflow_dispatch`). The first run backfills history (a few minutes), emails
-   the digest, deploys the dashboard, and commits the history store back to the repo.
-4. After that it runs automatically:
-   - **EOD Swing Screener** - weekdays 13:30 UTC (19:00 IST).
-   - **Pre-Market Brief** - weekdays 02:30 UTC (08:00 IST).
+```
+.
+├── pyproject.toml              # package + `nifty-scanner` CLI
+├── requirements.txt
+├── .env.example                # SMTP (required) + FTP (optional)
+├── run_eod.py / run_premarket.py   # wrappers: `python run_eod.py`
+├── scripts/run_local.sh        # one-command launcher
+├── data/
+│   ├── universe/nifty500.csv   # list + sector map (auto-downloaded)
+│   └── history/ohlcv.parquet   # local history store (auto-grows)
+├── src/nifty_scanner/
+│   ├── config.py  utils.py  indicators.py  cli.py
+│   ├── data/{bhavcopy,universe,history}.py
+│   ├── screener/{swing,sectors}.py
+│   ├── news/{feeds,cues}.py
+│   └── report/{render,email_send,deploy}.py
+├── web/templates/*.html  web/static/style.css
+└── tests/test_indicators.py
+```
 
-The Parquet history is committed back after each EOD run so it accumulates over
-time (the workflow has `contents: write` permission for this).
-
-### Hostinger side
-
-- Create a mailbox in hPanel and use its SMTP settings above.
-- Create/note an FTP account; point `FTP_REMOTE_DIR` at your web root
-  (`public_html`). The dashboard is served at your domain once deployed.
-
----
-
-## Local / VPS cron alternative
-
-If you run the pipeline on your own always-on machine or a VPS, see
-`scripts/crontab.example` (uses `nifty-scanner run-eod` / `run-news`). Remember
-cron uses the server timezone.
-
----
-
-## Extending
-
-- **Options greeks / live chain / intraday:** add a broker API (Upstox / Angel One
-  / Dhan / Fyers are free; Zerodha Kite is paid). Compute greeks/payoff in Python
-  (Black-Scholes) in that layer.
-- **Different universe / thresholds:** edit `config.py`.
-- **More news sources:** add feeds to `NEWS["feeds"]` in `config.py`.
+Run tests: `python tests/test_indicators.py`.
 
 ---
 
 ## Caveats
 
-- NSE bhavcopy and RSS are free/unofficial sources - fine for personal use; expect
-  occasional gaps (the code skips missing days/symbols gracefully). For a
-  public/commercial product move to a licensed feed.
-- All scheduling is timezone-sensitive (GitHub cron is UTC).
-- Handle NSE market holidays (runs simply produce no new bhavcopy that day).
+- NSE bhavcopy and RSS are free/unofficial - fine for personal use; expect
+  occasional gaps (the code skips missing days/symbols gracefully).
+- The first `run-eod` backfills history and takes a few minutes.
+- For live intraday / options greeks, add a broker API (Upstox/Dhan/Angel free
+  tiers; Kite paid) - the clean next upgrade.
