@@ -26,7 +26,9 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       SMTP_USE_SSL: ${{ secrets.SMTP_USE_SSL }}
       EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      EMAIL_SELF_COPY: ${{ secrets.EMAIL_SELF_COPY }}
       ACCOUNT_CAPITAL: ${{ secrets.ACCOUNT_CAPITAL }}
       RISK_PCT_PER_TRADE: ${{ secrets.RISK_PCT_PER_TRADE }}
     steps:

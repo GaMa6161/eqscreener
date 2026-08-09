@@ -16,17 +16,22 @@ log = logging.getLogger(__name__)
 
 
 def send_email(subject: str, html: str, cfg: EmailConfig, attachments: list[Path] | None = None) -> str:
-    """Send `html` to the configured recipients. Returns a status string.
+    """Send `html` to the configured recipients, bcc'd. Returns a status string.
+
+    The message is addressed to the sender's own mailbox and every configured
+    recipient is bcc'd, so recipients never see each other's addresses.
 
     If SMTP is not configured, nothing is sent (the caller still has the site/HTML).
     """
     if not cfg.is_configured:
         return "dry-run (SMTP not configured)"
 
+    # Recipients go in the SMTP envelope only. No Bcc header is written: it would
+    # be transmitted verbatim and defeat the point.
     msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
-    msg["From"] = cfg.sender
-    msg["To"] = ", ".join(cfg.recipients)
+    msg["From"] = cfg.from_header
+    msg["To"] = cfg.visible_to
 
     alt = MIMEMultipart("alternative")
     alt.attach(MIMEText("HTML email - please view in an HTML-capable client.", "plain"))
@@ -45,12 +50,12 @@ def send_email(subject: str, html: str, cfg: EmailConfig, attachments: list[Path
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(cfg.host, cfg.port, context=context) as server:
             server.login(cfg.user, cfg.password)
-            server.sendmail(cfg.sender, list(cfg.recipients), msg.as_string())
+            server.sendmail(cfg.sender, list(cfg.envelope_recipients), msg.as_string())
     else:
         with smtplib.SMTP(cfg.host, cfg.port) as server:
             server.ehlo()
             server.starttls(context=ssl.create_default_context())
             server.login(cfg.user, cfg.password)
-            server.sendmail(cfg.sender, list(cfg.recipients), msg.as_string())
+            server.sendmail(cfg.sender, list(cfg.envelope_recipients), msg.as_string())
 
-    return f"sent to {len(cfg.recipients)} recipient(s)"
+    return f"sent to {len(cfg.recipients)} bcc recipient(s) + self copy to {cfg.visible_to}"

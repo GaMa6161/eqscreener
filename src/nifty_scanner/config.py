@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from email.utils import formataddr, parseaddr
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -193,25 +194,48 @@ class EmailConfig:
     password: str = ""
     use_ssl: bool = True
     sender: str = ""
+    sender_name: str = ""
     recipients: tuple[str, ...] = ()
+    self_copy: str = ""
 
     @property
     def is_configured(self) -> bool:
         return bool(self.host and self.user and self.password and self.recipients)
+
+    @property
+    def from_header(self) -> str:
+        """`From:` value, with the display name quoted when it needs it."""
+        return formataddr((self.sender_name, self.sender)) if self.sender_name else self.sender
+
+    @property
+    def visible_to(self) -> str:
+        """The only address that appears in the headers; everyone else is bcc'd."""
+        return self.self_copy or self.sender
+
+    @property
+    def envelope_recipients(self) -> tuple[str, ...]:
+        """Every address the SMTP envelope delivers to, self copy first, deduped."""
+        return tuple(dict.fromkeys([self.visible_to, *self.recipients]))
 
     @classmethod
     def from_env(cls) -> "EmailConfig":
         recipients = tuple(
             r.strip() for r in os.getenv("EMAIL_TO", "").split(",") if r.strip()
         )
+        # EMAIL_FROM may be a bare address or "Name <addr>"; the envelope needs the
+        # bare address either way.
+        parsed_name, parsed_addr = parseaddr(os.getenv("EMAIL_FROM", "") or os.getenv("SMTP_USER", ""))
+        sender = parsed_addr or os.getenv("SMTP_USER", "")
         return cls(
             host=os.getenv("SMTP_HOST", ""),
             port=int(os.getenv("SMTP_PORT", "465") or "465"),
             user=os.getenv("SMTP_USER", ""),
             password=os.getenv("SMTP_PASSWORD", ""),
             use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), True),
-            sender=os.getenv("EMAIL_FROM", os.getenv("SMTP_USER", "")),
+            sender=sender,
+            sender_name=os.getenv("EMAIL_FROM_NAME", "").strip() or parsed_name,
             recipients=recipients,
+            self_copy=os.getenv("EMAIL_SELF_COPY", "").strip() or sender,
         )
 
 
