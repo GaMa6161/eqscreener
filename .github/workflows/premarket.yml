@@ -2,15 +2,10 @@ name: Pre-Market Brief
 
 # OPTIONAL cloud automation (primary usage is manual on your PC - see README).
 # Morning consolidated global news + overnight cues (useful for intraday).
-# GitHub cron is UTC; 01:07 UTC = 06:37 IST.
-#
-# Deliberately early and on an odd minute. GitHub's scheduler is best-effort:
-# runs queue late during high load (worst at :00 and :30) and are sometimes
-# dropped entirely. The brief is useless after the 09:15 IST open, so this
-# leaves ~2.5h of slack rather than aiming at 08:00 and hoping.
+# MANUAL ONLY. The daily schedule lives in morning.yml, which sends this brief
+# and the swing screener together in one run. Kept here so the brief can be
+# re-sent on its own without also re-running the screener.
 on:
-  schedule:
-    - cron: "7 1 * * 1-5"
   workflow_dispatch:
 
 permissions:
