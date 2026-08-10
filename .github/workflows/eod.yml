@@ -3,10 +3,14 @@ name: EOD Swing Screener
 # OPTIONAL cloud automation. The primary way to use this project is to run it
 # manually on your PC (see README / scripts/run_local.sh). Enable this workflow
 # only if you ALSO want scheduled email digests from the cloud.
-# Runs after the NSE bhavcopy is published. GitHub cron is UTC; 13:30 UTC = 19:00 IST.
+# Runs after the NSE bhavcopy is published. GitHub cron is UTC; 13:37 UTC = 19:07 IST.
+#
+# Odd minute on purpose: GitHub's scheduler is most contended at :00 and :30.
+# Nudged later rather than earlier so a late bhavcopy is still published by the
+# time this runs; unlike the pre-market brief, this one has no hard deadline.
 on:
   schedule:
-    - cron: "30 13 * * 1-5"
+    - cron: "37 13 * * 1-5"
   workflow_dispatch:
 
 permissions:

@@ -2,10 +2,15 @@ name: Pre-Market Brief
 
 # OPTIONAL cloud automation (primary usage is manual on your PC - see README).
 # Morning consolidated global news + overnight cues (useful for intraday).
-# GitHub cron is UTC; 02:30 UTC = 08:00 IST.
+# GitHub cron is UTC; 01:07 UTC = 06:37 IST.
+#
+# Deliberately early and on an odd minute. GitHub's scheduler is best-effort:
+# runs queue late during high load (worst at :00 and :30) and are sometimes
+# dropped entirely. The brief is useless after the 09:15 IST open, so this
+# leaves ~2.5h of slack rather than aiming at 08:00 and hoping.
 on:
   schedule:
-    - cron: "30 2 * * 1-5"
+    - cron: "7 1 * * 1-5"
   workflow_dispatch:
 
 permissions:
