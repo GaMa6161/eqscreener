@@ -3,10 +3,14 @@ name: EOD Swing Screener
 # OPTIONAL cloud automation. The primary way to use this project is to run it
 # manually on your PC (see README / scripts/run_local.sh). Enable this workflow
 # only if you ALSO want scheduled email digests from the cloud.
-# MANUAL ONLY. The daily schedule lives in morning.yml, which sends this digest
-# and the pre-market brief together in one run. Kept here so the screener can be
-# re-run on its own (e.g. after an NSE fetch failure) without re-sending the brief.
+# Runs after the NSE bhavcopy is published. GitHub cron is UTC; 13:37 UTC = 19:07 IST.
+#
+# Odd minute on purpose: GitHub's scheduler is most contended at :00 and :30.
+# Nudged later rather than earlier so a late bhavcopy is still published by the
+# time this runs; unlike the pre-market brief, this one has no hard deadline.
 on:
+  schedule:
+    - cron: "37 13 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -39,8 +43,8 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install
-        run: pip install -e .
+      - name: Install (with yfinance for index option spots)
+        run: pip install -e '.[extras]'
 
       - name: Update universe + history (idempotent; full backfill on first run)
         run: |
