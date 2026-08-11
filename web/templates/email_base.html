@@ -3,43 +3,107 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
 <title>{{ title }}</title>
+<!--
+  Styled to match gamafintech.com: #070b16 canvas, #0e1526 surfaces, emerald
+  #22c55e / teal #14b8a6 / sky #38bdf8 accents, Space Grotesk headings over Inter.
+
+  Class names are deliberately unchanged from the previous template so every
+  child block keeps rendering. Embedded <style> is used rather than fully inlined
+  attributes because modern Gmail, Apple Mail and Outlook.com all support it;
+  Outlook desktop drops the rounded corners and gradients and degrades to flat
+  panels, which still reads correctly.
+-->
 <style>
-  body { margin:0; padding:0; background:#f4f6f8; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:#1f2933; }
-  .wrap { max-width:860px; margin:0 auto; padding:20px; }
-  .card { background:#ffffff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.08); padding:22px; margin-bottom:18px; }
-  .header { background:#0f2942; color:#fff; border-radius:10px; padding:22px; margin-bottom:18px; }
-  .header h1 { margin:0 0 4px; font-size:20px; }
-  .header .sub { color:#9fb3c8; font-size:13px; }
-  h2 { font-size:16px; margin:0 0 12px; color:#0f2942; border-left:4px solid #2f80ed; padding-left:10px; }
-  h3 { font-size:13px; margin:16px 0 6px; color:#334155; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  body { margin:0; padding:0; background:#070b16; color:#e8edf7;
+         font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+         -webkit-font-smoothing:antialiased; }
+  .canvas { background:#070b16; width:100%; }
+  /* The outer <td> is align=center to centre the column in Outlook; text inside
+     must be pulled back to the left or every paragraph inherits the centring. */
+  .wrap { max-width:880px; margin:0 auto; padding:24px 16px 32px; text-align:left; }
+
+  .header { background:#0a1020; border:1px solid rgba(255,255,255,0.08);
+            border-radius:18px; padding:0; margin-bottom:18px; overflow:hidden; }
+  .headbar { height:4px; background:linear-gradient(120deg,#22c55e 0%,#14b8a6 55%,#38bdf8 100%); font-size:0; line-height:0; }
+  .headbody { padding:22px 24px; }
+  .brand { font-family:'Space Grotesk','Inter',system-ui,sans-serif; font-size:13px;
+           font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#22c55e; margin:0 0 10px; }
+  .header h1 { margin:0 0 6px; font-size:21px; line-height:1.3; font-weight:600; color:#e8edf7;
+               font-family:'Space Grotesk','Inter',system-ui,sans-serif; }
+  .header .sub { color:#93a2bd; font-size:13px; line-height:1.6; }
+
+  .card { background:#0e1526; border:1px solid rgba(255,255,255,0.08); border-radius:18px;
+          padding:20px 22px; margin-bottom:16px; }
+  h2 { font-size:15px; margin:0 0 14px; color:#e8edf7; font-weight:600;
+       font-family:'Space Grotesk','Inter',system-ui,sans-serif;
+       border-left:3px solid #22c55e; padding-left:11px; }
+  h3 { font-size:12.5px; margin:16px 0 6px; color:#93a2bd; font-weight:600;
+       text-transform:uppercase; letter-spacing:.06em; }
+
   table { width:100%; border-collapse:collapse; font-size:12.5px; }
-  th { text-align:left; background:#eef2f7; color:#334155; padding:8px 9px; font-weight:600; border-bottom:2px solid #dbe3ec; }
-  td { padding:7px 9px; border-bottom:1px solid #eef2f7; vertical-align:top; }
-  tr:nth-child(even) td { background:#fbfcfe; }
-  .pos { color:#1b8a5a; font-weight:600; }
-  .neg { color:#c0392b; font-weight:600; }
-  .pill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
-  .bull { background:#e3f6ec; color:#1b8a5a; }
-  .bear { background:#fce8e6; color:#c0392b; }
-  .tag { display:inline-block; background:#eef2f7; color:#334155; border-radius:10px; padding:1px 7px; font-size:10.5px; margin:1px 2px 1px 0; }
-  .muted { color:#7b8794; font-size:12px; }
-  .disclaimer { font-size:11px; color:#7b8794; line-height:1.5; background:#fff8e6; border:1px solid #f6e2a8; border-radius:8px; padding:12px; }
-  .empty { color:#7b8794; font-style:italic; padding:10px 0; }
-  a { color:#2f80ed; text-decoration:none; }
+  th { text-align:left; background:#121b30; color:#93a2bd; padding:9px 10px; font-weight:600;
+       border-bottom:1px solid rgba(255,255,255,0.10); font-size:11px;
+       text-transform:uppercase; letter-spacing:.05em; }
+  td { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.06);
+       vertical-align:top; color:#e8edf7; }
+  tr:nth-child(even) td { background:rgba(255,255,255,0.02); }
+
+  .pos { color:#22c55e; font-weight:600; }
+  .neg { color:#f87171; font-weight:600; }
+  .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:10.5px; font-weight:600;
+          letter-spacing:.03em; }
+  .bull { background:rgba(34,197,94,0.14); color:#8affc1; }
+  .bear { background:rgba(248,113,113,0.14); color:#fecaca; }
+  .tag { display:inline-block; background:#121b30; color:#93a2bd; border:1px solid rgba(255,255,255,0.07);
+         border-radius:999px; padding:2px 8px; font-size:10.5px; margin:1px 2px 1px 0; }
+  .tag-new { background:rgba(34,197,94,0.16); color:#8affc1; border-color:rgba(34,197,94,0.35); font-weight:600; }
+  .muted { color:#6b7a96; font-size:12px; }
+  .empty { color:#6b7a96; font-style:italic; padding:10px 0; }
+
+  .stat { display:inline-block; margin:0 20px 6px 0; }
+  .stat .n { font-family:'Space Grotesk','Inter',system-ui,sans-serif; font-size:20px;
+             font-weight:700; color:#e8edf7; display:block; line-height:1.2; }
+  .stat .l { font-size:10.5px; color:#6b7a96; text-transform:uppercase; letter-spacing:.07em; }
+
+  .disclaimer { font-size:11px; color:#93a2bd; line-height:1.6; background:#121b30;
+                border:1px solid rgba(255,255,255,0.08); border-left:3px solid #fbbf24;
+                border-radius:12px; padding:13px 15px; }
+  .footer { text-align:center; color:#6b7a96; font-size:11px; line-height:1.7; padding:6px 0 0; }
+  .footer .fbrand { font-family:'Space Grotesk','Inter',system-ui,sans-serif; color:#93a2bd;
+                    font-weight:600; letter-spacing:.1em; text-transform:uppercase; }
+  a { color:#38bdf8; text-decoration:none; }
 </style>
 </head>
-<body>
-  <div class="wrap">
-    <div class="header">
-      <h1>{% block heading %}{{ title }}{% endblock %}</h1>
-      <div class="sub">{% block subheading %}{{ date_str }}{% endblock %} &middot; generated {{ generated_at }} IST
-        {% if site_url %}&middot; <a href="{{ site_url }}" style="color:#7fb2f0;">open dashboard</a>{% endif %}
+<body style="margin:0;padding:0;background:#070b16;">
+  <table role="presentation" class="canvas" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#070b16">
+    <tr><td align="center" style="background:#070b16;">
+      <div class="wrap">
+        <div class="header">
+          <div class="headbar">&nbsp;</div>
+          <div class="headbody">
+            <div class="brand">GaMa FinTech</div>
+            <h1>{% block heading %}{{ title }}{% endblock %}</h1>
+            <div class="sub">{% block subheading %}{{ date_str }}{% endblock %} &middot; generated {{ generated_at }} IST
+              {% if site_url %}&middot; <a href="{{ site_url }}">open dashboard</a>{% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% block content %}{% endblock %}
+
+        <div class="card"><div class="disclaimer">{{ disclaimer }}</div></div>
+        <div class="footer">
+          <span class="fbrand">GaMa FinTech</span><br>
+          Automated Options Trading, Engineered for Consistency<br>
+          <span style="color:#4a5670;">Automated digest &middot; no reply required</span>
+        </div>
       </div>
-    </div>
-    {% block content %}{% endblock %}
-    <div class="card"><div class="disclaimer">{{ disclaimer }}</div></div>
-    <p class="muted" style="text-align:center;">{{ title }} &middot; automated digest</p>
-  </div>
+    </td></tr>
+  </table>
 </body>
 </html>

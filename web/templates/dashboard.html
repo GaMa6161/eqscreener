@@ -5,25 +5,204 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ title }} &mdash; Dashboard</title>
 <link rel="stylesheet" href="static/style.css">
+{% if live_mode and refresh_seconds %}
+<meta http-equiv="refresh" content="{{ refresh_seconds }}">
+{% endif %}
 </head>
 <body>
 <header class="topbar">
   <div class="wrap">
     <h1>{{ title }}</h1>
-    <div class="sub">{{ date_str }} &middot; updated {{ generated_at }} IST</div>
+    <div class="sub">{{ date_str }} &middot; updated {{ generated_at }} IST
+      {% if market_activity and market_activity.session_date %}
+      &middot; session {{ market_activity.session_date }}
+      {% endif %}
+      {% if live_mode %}<span class="pill bull">LIVE</span> refresh {{ refresh_seconds }}s{% endif %}
+    </div>
+    <nav class="tabs">
+      <a href="#activity">Activity</a>
+      <a href="#momentum">Momentum</a>
+      <a href="#strikes">Option strikes</a>
+      <a href="#swing">Swing</a>
+      <a href="#sectors">Sectors</a>
+      <a href="#news">News</a>
+    </nav>
   </div>
 </header>
 
 <main class="wrap">
   <section class="stats">
     <div class="stat"><div class="n">{{ stats.scanned }}</div><div class="l">Scanned</div></div>
-    <div class="stat"><div class="n">{{ stats.passed }}</div><div class="l">Passed filters</div></div>
-    <div class="stat"><div class="n">{{ candidates|length }}</div><div class="l">Top candidates</div></div>
-    <div class="stat"><div class="n">{{ sector_ranking|length }}</div><div class="l">Sectors ranked</div></div>
+    <div class="stat"><div class="n">{{ stats.momentum_bull | default(0) }}</div><div class="l">Momentum bull</div></div>
+    <div class="stat"><div class="n">{{ stats.momentum_bear | default(0) }}</div><div class="l">Momentum bear</div></div>
+    <div class="stat"><div class="n">{{ stats.strike_ideas | default(0) }}</div><div class="l">Strike ideas</div></div>
   </section>
-  <p class="dl"><a href="screener.csv">Download screener CSV</a> &middot; <a href="screener.json">JSON</a> &middot; benchmark {{ benchmark_label }}</p>
+  <p class="dl">
+    <a href="momentum.csv">Momentum CSV</a> &middot;
+    <a href="strikes.csv">Strikes CSV</a> &middot;
+    <a href="screener.csv">Swing CSV</a> &middot;
+    <a href="strikes.json">JSON</a> &middot;
+    benchmark {{ benchmark_label }}
+  </p>
 
-  <section class="card">
+  {% set act = market_activity or {} %}
+  {% set breadth = act.breadth or {} %}
+  <section class="card" id="activity">
+    <h2>Market Activity {% if act.session_date %}<span class="muted">{{ act.session_date }}</span>{% endif %}</h2>
+    {% if breadth %}
+    <div class="stats mini">
+      <div class="stat"><div class="n">{{ breadth.advances }}</div><div class="l">Advances</div></div>
+      <div class="stat"><div class="n">{{ breadth.declines }}</div><div class="l">Declines</div></div>
+      <div class="stat"><div class="n {{ 'pos' if breadth.avg_chg_pct is not none and breadth.avg_chg_pct >= 0 else 'neg' }}">{{ breadth.avg_chg_pct }}%</div><div class="l">Avg change</div></div>
+      <div class="stat"><div class="n">{{ breadth.total_turnover_cr }}</div><div class="l">Turnover (Cr)</div></div>
+    </div>
+    {% endif %}
+
+    <div class="grid-2">
+      <div>
+        <h3>Top gainers</h3>
+        {% if act.gainers %}
+        <div class="scroll">
+        <table>
+          <thead><tr><th>Symbol</th><th>Chg%</th><th>Close</th><th>Vol×</th><th>Turn Cr</th></tr></thead>
+          <tbody>
+            {% for r in act.gainers %}
+            <tr>
+              <td><strong>{{ r.symbol }}</strong><div class="muted">{{ r.sector }}</div></td>
+              <td class="pos">{{ r.chg_pct }}</td>
+              <td>{{ r.close }}</td><td>{{ r.vol_mult }}</td><td>{{ r.turnover_cr }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}<div class="empty">No gainers.</div>{% endif %}
+      </div>
+      <div>
+        <h3>Top losers</h3>
+        {% if act.losers %}
+        <div class="scroll">
+        <table>
+          <thead><tr><th>Symbol</th><th>Chg%</th><th>Close</th><th>Vol×</th><th>Turn Cr</th></tr></thead>
+          <tbody>
+            {% for r in act.losers %}
+            <tr>
+              <td><strong>{{ r.symbol }}</strong><div class="muted">{{ r.sector }}</div></td>
+              <td class="neg">{{ r.chg_pct }}</td>
+              <td>{{ r.close }}</td><td>{{ r.vol_mult }}</td><td>{{ r.turnover_cr }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}<div class="empty">No losers.</div>{% endif %}
+      </div>
+    </div>
+
+    <h3>Unusual volume</h3>
+    {% if act.unusual_volume %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Symbol</th><th>Vol×</th><th>Chg%</th><th>Close</th><th>Turn Cr</th><th>Sector</th></tr></thead>
+      <tbody>
+        {% for r in act.unusual_volume %}
+        <tr>
+          <td><strong>{{ r.symbol }}</strong></td>
+          <td><strong>{{ r.vol_mult }}</strong></td>
+          <td class="{{ 'pos' if r.chg_pct is not none and r.chg_pct >= 0 else 'neg' }}">{{ r.chg_pct }}</td>
+          <td>{{ r.close }}</td><td>{{ r.turnover_cr }}</td><td>{{ r.sector }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="empty">No unusual-volume names today.</div>{% endif %}
+  </section>
+
+  <section class="card" id="momentum">
+    <h2>Momentum Stocks</h2>
+    <div class="grid-2">
+      <div>
+        <h3>Bullish</h3>
+        {% if momentum_bull %}
+        <div class="scroll">
+        <table>
+          <thead><tr><th>Symbol</th><th>Close</th><th>5d%</th><th>10d%</th><th>RSI</th><th>Vol×</th><th>Score</th></tr></thead>
+          <tbody>
+            {% for r in momentum_bull %}
+            <tr>
+              <td><strong>{{ r.symbol }}</strong><div class="muted">{{ r.sector }}</div></td>
+              <td>{{ r.close }}</td>
+              <td class="{{ 'pos' if r.ret_5 is not none and r.ret_5 >= 0 else 'neg' }}">{{ r.ret_5 }}</td>
+              <td class="{{ 'pos' if r.ret_10 is not none and r.ret_10 >= 0 else 'neg' }}">{{ r.ret_10 }}</td>
+              <td>{{ r.rsi }}</td><td>{{ r.vol_mult }}</td>
+              <td><strong>{{ r.score }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}<div class="empty">No bullish momentum names.</div>{% endif %}
+      </div>
+      <div>
+        <h3>Bearish</h3>
+        {% if momentum_bear %}
+        <div class="scroll">
+        <table>
+          <thead><tr><th>Symbol</th><th>Close</th><th>5d%</th><th>10d%</th><th>RSI</th><th>Vol×</th><th>Score</th></tr></thead>
+          <tbody>
+            {% for r in momentum_bear %}
+            <tr>
+              <td><strong>{{ r.symbol }}</strong><div class="muted">{{ r.sector }}</div></td>
+              <td>{{ r.close }}</td>
+              <td class="{{ 'pos' if r.ret_5 is not none and r.ret_5 >= 0 else 'neg' }}">{{ r.ret_5 }}</td>
+              <td class="{{ 'pos' if r.ret_10 is not none and r.ret_10 >= 0 else 'neg' }}">{{ r.ret_10 }}</td>
+              <td>{{ r.rsi }}</td><td>{{ r.vol_mult }}</td>
+              <td><strong>{{ r.score }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}<div class="empty">No bearish momentum names.</div>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="strikes">
+    <h2>Option Strike Ideas <span class="muted">(defined-risk scaffolds)</span></h2>
+    {% if strike_ideas %}
+    <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>Underlying</th><th>Bias</th><th>Spot</th><th>Structure</th>
+        <th>Buy</th><th>Sell</th><th>ATM</th><th>Expiry</th><th>Why</th>
+      </tr></thead>
+      <tbody>
+        {% for o in strike_ideas %}
+        <tr>
+          <td>
+            <strong>{{ o.symbol }}</strong>
+            <div class="muted">{{ o.sector }} · {{ o.instrument_kind }}</div>
+          </td>
+          <td><span class="pill {{ 'bull' if o.bias == 'Bullish' else 'bear' }}">{{ o.bias }}</span></td>
+          <td>{{ o.spot }}</td>
+          <td>{{ o.structure }}</td>
+          <td><strong>{{ o.buy_strike }} {{ o.buy_option }}</strong></td>
+          <td>{{ o.sell_strike }} {{ o.sell_option }}</td>
+          <td>{{ o.atm_strike }}</td>
+          <td>{{ o.expiry_label }}</td>
+          <td class="muted reason">{{ o.rationale }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted note">Equity spots = EOD close; index spots = Yahoo last close. Strikes snap to typical NSE intervals — confirm live chain, OI, IV and lot size in your broker before entry.</p>
+    {% else %}<div class="empty">No strike ideas generated.</div>{% endif %}
+  </section>
+
+  <section class="card" id="swing">
     <h2>Swing Candidates</h2>
     {% if candidates %}
     <div class="scroll">
@@ -60,7 +239,7 @@
     {% else %}<div class="empty">No candidates passed all filters today.</div>{% endif %}
   </section>
 
-  <section class="card">
+  <section class="card" id="sectors">
     <h2>Sector Rotation</h2>
     {% if sector_ranking %}
     <div class="scroll">
@@ -80,10 +259,8 @@
     </table>
     </div>
     {% else %}<div class="empty">Not enough data for sector ranking.</div>{% endif %}
-  </section>
 
-  <section class="card">
-    <h2>Sectorial Options Ideas <span class="muted">(defined-risk only)</span></h2>
+    <h3>Sectorial options (structure only)</h3>
     {% if options_ideas %}
     <div class="scroll">
     <table>
@@ -120,7 +297,7 @@
   </section>
   {% endif %}
 
-  <section class="card">
+  <section class="card" id="news">
     <h2>Consolidated Headlines</h2>
     {% set ns = namespace(any=false) %}
     {% for category in categories %}
@@ -141,7 +318,7 @@
   </section>
 
   <section class="card disclaimer">{{ disclaimer }}</section>
-  <p class="foot">{{ title }} &middot; automated static dashboard</p>
+  <p class="foot">{{ title }} &middot; local research dashboard</p>
 </main>
 </body>
 </html>

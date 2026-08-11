@@ -7,8 +7,50 @@
   <p class="muted">
     Scanned <strong>{{ stats.scanned }}</strong> stocks &middot;
     <strong>{{ stats.passed }}</strong> passed all swing filters &middot;
+    momentum <strong>{{ stats.momentum_bull | default(0) }}</strong> bull /
+    <strong>{{ stats.momentum_bear | default(0) }}</strong> bear &middot;
+    <strong>{{ stats.strike_ideas | default(0) }}</strong> option strike ideas &middot;
     benchmark {{ benchmark_label }}.
+    {% if stats.session_date %}<br>Session close used: <strong>{{ stats.session_date }}</strong>{% endif %}
   </p>
+</div>
+
+<div class="card">
+  <h2>Option Strike Ideas <span class="muted">(defined-risk scaffolds)</span></h2>
+  {% if strike_ideas %}
+  <table>
+    <thead>
+      <tr>
+        <th>Underlying</th><th>Bias</th><th>Spot</th><th>Structure</th>
+        <th>Buy</th><th>Sell</th><th>ATM</th><th>Expiry</th><th>Why</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in strike_ideas %}
+      <tr>
+        <td>
+          <strong>{{ o.symbol }}</strong><br>
+          <span class="muted">{{ o.sector }} · {{ o.instrument_kind }}</span>
+        </td>
+        <td><span class="pill {{ 'bull' if (o.bias or o.direction) == 'Bullish' else 'bear' }}">{{ o.bias or o.direction }}</span></td>
+        <td>{{ o.spot }}</td>
+        <td>{{ o.structure }}</td>
+        <td><strong>{{ o.buy_strike }} {{ o.buy_option }}</strong></td>
+        <td>{{ o.sell_strike }} {{ o.sell_option }}</td>
+        <td>{{ o.atm_strike }}</td>
+        <td>{{ o.expiry_label }}</td>
+        <td class="muted">{{ o.rationale }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">
+    Debit spreads only (max loss = net premium). Equity spots = EOD close; index spots = Yahoo last close.
+    Confirm live chain, OI, IV, lot size and expiry in your broker before entry. CSV attached when available.
+  </p>
+  {% else %}
+  <div class="empty">No strike ideas generated today.</div>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -26,7 +68,9 @@
       {% for r in candidates %}
       <tr>
         <td>{{ loop.index }}</td>
-        <td><strong>{{ r.symbol }}</strong><br><span class="muted">{{ r.name }}</span>
+        <td><strong>{{ r.symbol }}</strong>
+          {% if r.streak_label %}<span class="tag {{ 'tag-new' if r.streak_label == 'NEW' else '' }}">{{ r.streak_label }}</span>{% endif %}
+          <br><span class="muted">{{ r.name }}</span>
           {% if r.setups %}<br>{% for t in r.setups %}<span class="tag">{{ t }}</span>{% endfor %}{% endif %}
         </td>
         <td>{{ r.sector }}</td>
@@ -36,20 +80,96 @@
         <td>{{ r.vol_mult }}</td>
         <td>{{ r.rs }}</td>
         <td class="{{ 'pos' if r.ret_63 is not none and r.ret_63 >= 0 else 'neg' }}">{{ r.ret_63 }}</td>
-        <td>{{ r.stop }}</td>
+        <td>{{ r.stop }}{% if r.stop_basis %}<br><span class="muted">{{ r.stop_basis }}</span>{% endif %}</td>
         <td>{% if r.targets %}{{ r.targets | join(' / ') }}{% else %}-{% endif %}</td>
         <td>{{ r.risk_pct }}%</td>
-        <td>{{ r.qty }}</td>
+        <td>{{ r.qty }}{% if r.size_capped_by %}<br><span class="muted">{{ r.size_capped_by }}</span>{% endif %}</td>
         <td><strong>{{ r.score }}</strong></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="muted">Stop = entry &minus; 2&times;ATR; targets at 2R/3R. Qty sized to risk ~{{ risk_pct_per_trade }}% of capital per trade. Verify before acting.</p>
+  <p class="muted">Stop sits below the recent swing low where structure allows, otherwise entry &minus; 2&times;ATR, never tighter than 0.75&times;ATR; targets at 2R/3R.
+    Qty risks ~{{ risk_pct_per_trade }}% of capital, capped at 1% of 20d average volume and 20% of capital.
+    Score is a percentile blend (0&ndash;100) across the day's universe. Verify before acting.</p>
   {% else %}
   <div class="empty">No stocks passed all filters today. In choppy/bearish markets this is normal.</div>
   {% endif %}
 </div>
+
+{% if tracking %}
+<div class="card">
+  <h2>Paper Book <span class="muted">(auto-tracked, not advice)</span></h2>
+  <div style="margin-bottom:14px;">
+    <span class="stat"><span class="n">{{ tracking.stats.open_count }}</span><span class="l">open</span></span>
+    <span class="stat"><span class="n">{{ tracking.stats.closed_count }}</span><span class="l">closed</span></span>
+    <span class="stat"><span class="n">{{ tracking.stats.win_rate if tracking.stats.win_rate is not none else '—' }}{% if tracking.stats.win_rate is not none %}%{% endif %}</span><span class="l">win rate</span></span>
+    <span class="stat"><span class="n">{{ tracking.stats.avg_r if tracking.stats.avg_r is not none else '—' }}</span><span class="l">avg R</span></span>
+    <span class="stat"><span class="n">{{ tracking.stats.total_r if tracking.stats.total_r is not none else '—' }}</span><span class="l">total R</span></span>
+  </div>
+
+  {% if tracking.open %}
+  <h3>Open</h3>
+  <table>
+    <thead><tr><th>Symbol</th><th>Entered</th><th>Entry</th><th>Stop</th><th>Days</th><th>R</th></tr></thead>
+    <tbody>
+      {% for p in tracking.open %}
+      <tr>
+        <td><strong>{{ p.symbol }}</strong><br><span class="muted">{{ p.sector }}</span></td>
+        <td>{{ p.entry_date }}</td>
+        <td>{{ p.entry }}</td>
+        <td>{{ p.stop }}</td>
+        <td>{{ p.days_held }}</td>
+        <td class="{{ 'pos' if p.r_multiple is not none and p.r_multiple >= 0 else 'neg' }}">{{ p.r_multiple if p.r_multiple is not none else '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if tracking.recently_closed %}
+  <h3>Recently closed</h3>
+  <table>
+    <thead><tr><th>Symbol</th><th>Outcome</th><th>Entry</th><th>Exit</th><th>Days</th><th>R</th></tr></thead>
+    <tbody>
+      {% for p in tracking.recently_closed %}
+      <tr>
+        <td><strong>{{ p.symbol }}</strong></td>
+        <td><span class="pill {{ 'bull' if p.r_multiple is not none and p.r_multiple > 0 else 'bear' }}">{{ p.status }}</span></td>
+        <td>{{ p.entry }}</td>
+        <td>{{ p.exit }}</td>
+        <td>{{ p.days_held }}</td>
+        <td class="{{ 'pos' if p.r_multiple is not none and p.r_multiple >= 0 else 'neg' }}">{{ p.r_multiple }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <p class="muted">The top candidates are opened as paper trades each session and marked to market until a stop, target or the 30-session limit.
+    When a bar covers both stop and target, the stop is assumed to hit first. No orders are placed.</p>
+</div>
+{% endif %}
+
+{% if corporate_actions %}
+<div class="card">
+  <h2>Data Health <span class="muted">(corporate actions applied)</span></h2>
+  <p class="muted">Bhavcopy prices are raw, so splits and bonuses are back-adjusted before any indicator is computed. Without this these names read as catastrophic falls and fail the trend gates for reasons that never happened.</p>
+  <table>
+    <thead><tr><th>Symbol</th><th>Ex-date</th><th>Ratio</th><th>Detection</th></tr></thead>
+    <tbody>
+      {% for e in corporate_actions %}
+      <tr>
+        <td><strong>{{ e.symbol }}</strong></td>
+        <td>{{ e.date }}</td>
+        <td>{{ e.ratio }}</td>
+        <td>{% if e.exact %}<span class="pill bull">clean split</span>{% else %}<span class="pill bear">approximate</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 <div class="card">
   <h2>Sector Rotation</h2>

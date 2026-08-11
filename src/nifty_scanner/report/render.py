@@ -91,6 +91,10 @@ def write_site(context: dict, candidates: pd.DataFrame | None = None) -> None:
     _write_json("screener.json", context.get("candidates", []))
     _write_json("sectors.json", context.get("sector_ranking", []))
     _write_json("options.json", context.get("options_ideas", []))
+    _write_json("activity.json", context.get("market_activity", {}))
+    _write_json("momentum_bull.json", context.get("momentum_bull", []))
+    _write_json("momentum_bear.json", context.get("momentum_bear", []))
+    _write_json("strikes.json", context.get("strike_ideas", []))
     _write_json("news.json", context.get("news", {}))
     _write_json("meta.json", {
         "title": context.get("title"),
@@ -104,7 +108,45 @@ def write_site(context: dict, candidates: pd.DataFrame | None = None) -> None:
                 "ret_21", "ret_63", "near_52w_pct", "stop", "risk_pct", "qty", "score"]
         tidy = candidates[[c for c in cols if c in candidates.columns]].copy()
         tidy.to_csv(config.SITE_DIR / "screener.csv", index=False)
+
+    strikes = context.get("strike_ideas") or []
+    if strikes:
+        pd.DataFrame(strikes).to_csv(config.SITE_DIR / "strikes.csv", index=False)
+
+    mom = list(context.get("momentum_bull") or []) + list(context.get("momentum_bear") or [])
+    if mom:
+        pd.DataFrame(mom).to_csv(config.SITE_DIR / "momentum.csv", index=False)
+
     log.info("site written -> %s", config.SITE_DIR)
+
+
+def write_live_site(context: dict) -> None:
+    """Write the auto-refreshing live dashboard (+ JSON/CSV artifacts)."""
+    config.ensure_dirs()
+    html = _env.get_template("dashboard.html").render(**context)
+    (config.SITE_DIR / "live.html").write_text(html, encoding="utf-8")
+    # Also refresh index so `serve` without --live still shows latest live if desired.
+    (config.SITE_DIR / "index.html").write_text(html, encoding="utf-8")
+    _copy_static()
+    _write_json("activity.json", context.get("market_activity", {}))
+    _write_json("momentum_bull.json", context.get("momentum_bull", []))
+    _write_json("momentum_bear.json", context.get("momentum_bear", []))
+    _write_json("strikes.json", context.get("strike_ideas", []))
+    _write_json("meta.json", {
+        "title": context.get("title"),
+        "date": context.get("date_str"),
+        "generated_at": context.get("generated_at"),
+        "stats": context.get("stats", {}),
+        "live_mode": True,
+        "refresh_seconds": context.get("refresh_seconds"),
+    })
+    strikes = context.get("strike_ideas") or []
+    if strikes:
+        pd.DataFrame(strikes).to_csv(config.SITE_DIR / "strikes.csv", index=False)
+    mom = list(context.get("momentum_bull") or []) + list(context.get("momentum_bear") or [])
+    if mom:
+        pd.DataFrame(mom).to_csv(config.SITE_DIR / "momentum.csv", index=False)
+    log.info("live site written -> %s", config.SITE_DIR / "live.html")
 
 
 def write_premarket_page(context: dict) -> None:
@@ -117,3 +159,7 @@ def write_premarket_page(context: dict) -> None:
 
 def screener_csv_path():
     return config.SITE_DIR / "screener.csv"
+
+
+def strikes_csv_path():
+    return config.SITE_DIR / "strikes.csv"

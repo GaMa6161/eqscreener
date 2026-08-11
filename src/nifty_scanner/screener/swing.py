@@ -25,6 +25,7 @@ def compute_metrics(
     universe: pd.DataFrame,
     benchmark_close: pd.Series | None,
     params: dict,
+    earnings: dict | None = None,
 ) -> pd.DataFrame:
     """One metrics row per stock, including pass/fail gates, score and levels."""
     rsi_len = params["momentum"]["rsi_length"]
@@ -59,6 +60,7 @@ def compute_metrics(
 
         avg_vol = _last(ta.sma(vol, vol_len))
         vol_mult = _last(vol) / avg_vol if avg_vol else float("nan")
+        swing_low = _last(ta.rolling_low(low, params.get("swing_low_lookback", 10)))
         turn_src = df["turnover"] if df["turnover"].fillna(0).gt(0).any() else (close * vol)
         turnover_cr = _last(turn_src.rolling(vol_len, min_periods=vol_len).mean()) / CRORE
 
@@ -88,12 +90,15 @@ def compute_metrics(
             "ret_63": round(ret_63 * 100, 1) if not math.isnan(ret_63) else np.nan,
             "above_ema50": bool(c > ema50) if not math.isnan(ema50) else False,
             "atr": round(atr, 2) if not math.isnan(atr) else np.nan,
+            "swing_low": round(swing_low, 2) if not math.isnan(swing_low) else np.nan,
+            "avg_vol": round(avg_vol, 0) if not math.isnan(avg_vol) else np.nan,
+            "earnings_in": (earnings or {}).get(symbol, np.nan),
         }
         _apply_gates(row, params)
         _apply_levels(row, params, acct)
         rows.append(row)
 
-    return pd.DataFrame(rows)
+    return _apply_scores(pd.DataFrame(rows), params)
 
 
 def _apply_gates(row: dict, params: dict) -> None:
@@ -130,28 +135,68 @@ def _apply_gates(row: dict, params: dict) -> None:
     if rsp["require_outperform_benchmark"] and not _isnan(row.get("rs")) and row["rs"] <= 1.0:
         reasons.append("lagging benchmark")
 
+    blackout = params.get("earnings_blackout_days", 0)
+    if blackout and not _isnan(row.get("earnings_in")) and row["earnings_in"] <= blackout:
+        reasons.append(f"earnings in {int(row['earnings_in'])}d")
+
     row["passed"] = len(reasons) == 0
     row["reason"] = "" if row["passed"] else ", ".join(reasons)
     row["setups"] = _setups(row, params)
-    row["score"] = _score(row)
 
 
 def _apply_levels(row: dict, params: dict, acct: dict) -> None:
-    """ATR-based stop/targets and risk-based position size."""
+    """Structural stop, targets, and a position size bounded by risk and liquidity."""
     atr = row.get("atr", np.nan)
     close = row.get("close", np.nan)
     if _isnan(atr) or _isnan(close):
-        row.update({"stop": np.nan, "risk_pct": np.nan, "targets": [], "qty": np.nan, "position_value": np.nan})
+        row.update({"stop": np.nan, "risk_pct": np.nan, "targets": [], "qty": np.nan,
+                    "position_value": np.nan, "stop_basis": "", "size_capped_by": ""})
         return
-    stop = round(close - params["stop_atr_mult"] * atr, 2)
+
+    # Prefer a stop just under the recent swing low - price has to break real
+    # structure to take you out, not just wobble. Bounded on both sides: never
+    # wider than the ATR stop, never tighter than daily noise.
+    atr_stop = close - params["stop_atr_mult"] * atr
+    swing_low = row.get("swing_low", np.nan)
+    basis = "ATR"
+    stop = atr_stop
+    if not _isnan(swing_low):
+        structural = swing_low - params.get("stop_buffer_atr", 0.25) * atr
+        if structural > atr_stop:
+            stop, basis = structural, "swing low"
+    tightest = close - params.get("min_stop_atr", 0.75) * atr
+    if stop > tightest:
+        stop, basis = tightest, "min ATR floor"
+
+    stop = round(stop, 2)
     risk_ps = close - stop
     row["stop"] = stop
+    row["stop_basis"] = basis
     row["risk_pct"] = round(risk_ps / close * 100, 1) if close else np.nan
     row["targets"] = [round(close + m * risk_ps, 2) for m in params.get("target_r_multiples", [2.0, 3.0])]
+
     budget = acct["capital"] * acct["risk_pct"] / 100.0
     qty = int(budget // risk_ps) if risk_ps > 0 else 0
-    row["qty"] = qty
-    row["position_value"] = round(qty * close, 0)
+    capped_by = ""
+
+    # You cannot trade size you cannot fill: cap against average daily volume.
+    avg_vol = row.get("avg_vol", np.nan)
+    adv_pct = params.get("max_adv_pct", 0)
+    if adv_pct and not _isnan(avg_vol) and avg_vol > 0:
+        adv_cap = int(avg_vol * adv_pct / 100.0)
+        if adv_cap < qty:
+            qty, capped_by = adv_cap, "liquidity"
+
+    # And no single name should dominate the book.
+    pos_pct = params.get("max_position_pct", 0)
+    if pos_pct and close > 0:
+        value_cap = int((acct["capital"] * pos_pct / 100.0) // close)
+        if value_cap < qty:
+            qty, capped_by = value_cap, "position cap"
+
+    row["qty"] = max(qty, 0)
+    row["size_capped_by"] = capped_by
+    row["position_value"] = round(row["qty"] * close, 0)
 
 
 def _setups(row: dict, params: dict) -> list[str]:
@@ -170,26 +215,62 @@ def _setups(row: dict, params: dict) -> list[str]:
     return tags
 
 
-def _score(row: dict) -> float:
-    def g(k):
-        v = row.get(k, np.nan)
-        return 0.0 if (v is None or (isinstance(v, float) and math.isnan(v))) else v
+def _apply_scores(df: pd.DataFrame, params: dict) -> pd.DataFrame:
+    """Composite score from cross-sectionally percentile-ranked components.
 
-    rs = g("rs")
-    score = (
-        40.0 * (rs - 1.0 if rs else 0.0)
-        + 0.4 * g("ret_63")
-        + 0.3 * g("ret_21")
-        + 5.0 * (g("vol_mult") - 1.0)
-        + max(0.0, g("rsi") - 50.0) / 5.0
-        + max(0.0, g("adx") - 20.0) / 10.0
-        - 0.2 * g("near_52w_pct")
-    )
-    return round(score, 2)
+    Ranking first is what makes the weights honest. Scoring the raw values let
+    whichever component happened to have the widest numeric range dominate: a
+    63-day return spans roughly +/-50 while relative strength spans +/-0.1, so
+    the old formula was effectively "sort by 3-month return" no matter what
+    weight relative strength carried.
+
+    Every component becomes a 0-100 percentile within the day's universe, so a
+    weight of 0.30 really is 30% of the decision. Missing values rank neutral.
+    """
+    if df.empty:
+        return df
+    weights = params.get("score_weights") or {}
+    if not weights:
+        df["score"] = np.nan
+        return df
+
+    score = pd.Series(0.0, index=df.index)
+    for col, weight in weights.items():
+        if col not in df.columns:
+            continue
+        values = pd.to_numeric(df[col], errors="coerce")
+        if col == "near_52w_pct":
+            values = -values          # smaller distance from the high is better
+        elif col == "rsi":
+            values = values.where(values <= 75, 150 - values)  # punish overextension
+        ranks = values.rank(pct=True, na_option="keep") * 100.0
+        score += ranks.fillna(50.0) * weight
+
+    df["score"] = score.round(1)
+    return df
 
 
 def _isnan(v) -> bool:
     return v is None or (isinstance(v, float) and math.isnan(v))
+
+
+def _cap_by_sector(df: pd.DataFrame, max_per_sector: int) -> pd.DataFrame:
+    """Keep the best N per sector so the list is not one macro bet in disguise.
+
+    Fifteen candidates that are nine PSU banks is a single position wearing nine
+    tickers; correlation shows up as a drawdown, not on the screen.
+    """
+    if not max_per_sector or df.empty or "sector" not in df.columns:
+        return df
+    counts: dict[str, int] = {}
+    keep = []
+    for idx, row in df.iterrows():          # already score-sorted
+        sector = row.get("sector") or "Unknown"
+        if counts.get(sector, 0) >= max_per_sector:
+            continue
+        counts[sector] = counts.get(sector, 0) + 1
+        keep.append(idx)
+    return df.loc[keep]
 
 
 def run_screener(
@@ -197,11 +278,14 @@ def run_screener(
     universe: pd.DataFrame,
     benchmark_close: pd.Series | None,
     params: dict,
+    earnings: dict | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (candidates, all_metrics). Candidates pass every gate, sorted by score."""
-    metrics = compute_metrics(history, universe, benchmark_close, params)
+    metrics = compute_metrics(history, universe, benchmark_close, params, earnings=earnings)
     if metrics.empty:
         return metrics, metrics
     passed = metrics[metrics["passed"] == True].copy()  # noqa: E712
-    passed = passed.sort_values("score", ascending=False).head(params.get("max_results", 25))
+    passed = passed.sort_values("score", ascending=False)
+    passed = _cap_by_sector(passed, params.get("max_per_sector", 0))
+    passed = passed.head(params.get("max_results", 25))
     return passed.reset_index(drop=True), metrics

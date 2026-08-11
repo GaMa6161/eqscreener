@@ -1,1 +1,1 @@
-"""Swing screener and sector-rotation / options-idea generation."""
+"""Screeners: swing, momentum, market activity, sector rotation, strike ideas."""

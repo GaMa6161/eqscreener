@@ -1,0 +1,156 @@
+{
+  "candidates": {
+    "ARE&M": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "ASTERDM": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "BOSCHLTD": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "CHENNPETRO": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "CPPLUS": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "ENDURANCE": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "FINCABLES": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "KIMS": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "KPIL": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "MRPL": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "SIEMENS": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    },
+    "ZYDUSLIFE": {
+      "days": 1,
+      "first_seen": "2026-08-11",
+      "last_seen": "2026-08-11"
+    }
+  },
+  "positions": [
+    {
+      "days_held": 0,
+      "entry": 1426.1,
+      "entry_date": "2026-08-11",
+      "exit": null,
+      "exit_date": null,
+      "name": "Chennai Petroleum Corporation Ltd.",
+      "qty": 70,
+      "r_multiple": null,
+      "sector": "Oil Gas & Consumable Fuels",
+      "status": "open",
+      "stop": 1283.74,
+      "symbol": "CHENNPETRO",
+      "targets": [
+        1710.82,
+        1853.18
+      ]
+    },
+    {
+      "days_held": 0,
+      "entry": 45185.0,
+      "entry_date": "2026-08-11",
+      "exit": null,
+      "exit_date": null,
+      "name": "Bosch Ltd.",
+      "qty": 4,
+      "r_multiple": null,
+      "sector": "Automobile and Auto Components",
+      "status": "open",
+      "stop": 43030.54,
+      "symbol": "BOSCHLTD",
+      "targets": [
+        49493.92,
+        51648.38
+      ]
+    },
+    {
+      "days_held": 0,
+      "entry": 3805.5,
+      "entry_date": "2026-08-11",
+      "exit": null,
+      "exit_date": null,
+      "name": "Aditya Infotech Ltd.",
+      "qty": 34,
+      "r_multiple": null,
+      "sector": "Capital Goods",
+      "status": "open",
+      "stop": 3512.22,
+      "symbol": "CPPLUS",
+      "targets": [
+        4392.06,
+        4685.34
+      ]
+    },
+    {
+      "days_held": 0,
+      "entry": 1191.0,
+      "entry_date": "2026-08-11",
+      "exit": null,
+      "exit_date": null,
+      "name": "Zydus Lifesciences Ltd.",
+      "qty": 167,
+      "r_multiple": null,
+      "sector": "Healthcare",
+      "status": "open",
+      "stop": 1135.74,
+      "symbol": "ZYDUSLIFE",
+      "targets": [
+        1301.52,
+        1356.78
+      ]
+    },
+    {
+      "days_held": 0,
+      "entry": 4011.0,
+      "entry_date": "2026-08-11",
+      "exit": null,
+      "exit_date": null,
+      "name": "Siemens Ltd.",
+      "qty": 45,
+      "r_multiple": null,
+      "sector": "Capital Goods",
+      "status": "open",
+      "stop": 3789.82,
+      "symbol": "SIEMENS",
+      "targets": [
+        4453.36,
+        4674.54
+      ]
+    }
+  ]
+}

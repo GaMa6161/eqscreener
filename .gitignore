@@ -26,3 +26,6 @@ cache/
 
 # OS
 .DS_Store
+
+# Backtest artefacts
+output/backtest.csv

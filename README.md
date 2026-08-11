@@ -1,26 +1,27 @@
 # Nifty Eq Scanner
 
-An **end-of-day (EOD) swing screener for the Nifty 500** with **sector-rotation
-ranking**, **defined-risk sectorial options ideas**, and a **consolidated global
-news brief**. You **run it manually on your PC** and it **emails you the digest**
-(and writes a local HTML dashboard you can open in a browser).
+An **end-of-day market scanner for the Nifty 500** with **session activity**,
+**momentum stock ranking**, **option strike scaffolds**, **swing candidates**,
+**sector rotation**, and a **local dashboard**. Run it on your PC; optionally
+email the digest.
 
 > **Not investment advice.** Signals are produced by mechanical rules and can be
-> wrong. Options ideas are directional scaffolding only. This is an engineering /
-> research tool - do your own research and manage risk.
+> wrong. Options ideas / strikes are directional scaffolding only — confirm live
+> chain, OI, IV and lots in your broker. This is an engineering / research tool.
 
 ---
 
 ## What it does
 
-Two commands you run when you want them:
-
 | Command | When | Contents |
 |---------|------|----------|
-| `run-eod` | after market close (bhavcopy ~6-7pm IST) | ranked swing candidates (with ATR stops/targets + position sizing), sector rotation, sectorial options ideas -> **emailed** + `output/site/index.html` |
-| `run-news` | before the open | overnight global cues (US/Asia/crude/gold/USDINR/VIX) + consolidated news headlines -> **emailed** + `output/site/premarket.html` |
+| `run-scan` | after market close | market activity + momentum + option strike scaffolds + swing/sectors → `output/site/index.html` |
+| `run-eod` | after market close | same as `run-scan`, plus optional email |
+| `run-live` | market hours | **Dhan** live quotes + intraday momentum + **live option-chain** strikes → `output/site/live.html` (auto-refresh) |
+| `run-news` | before the open | overnight global cues + news headlines → `output/site/premarket.html` |
+| `serve` | anytime | local web server (`--live` opens the live page) |
 
-Everything runs locally on your machine. No server, no hosting required.
+Everything runs locally on your machine.
 
 ---
 
@@ -35,8 +36,9 @@ source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -e '.[extras]'           # extras = yfinance, for the overnight cues
 
 # 2) See a full sample instantly (offline synthetic data, no network, no email):
-nifty-scanner run-eod --demo --no-email
-open output/site/index.html          # macOS  (Windows: start ...; Linux: xdg-open ...)
+nifty-scanner run-scan --demo --no-email
+nifty-scanner serve                  # opens http://127.0.0.1:8765
+# or: open output/site/index.html
 
 # 3) Configure email: copy .env.example -> .env and fill the SMTP section
 cp .env.example .env
@@ -51,7 +53,7 @@ nifty-scanner run-news                # global cues + news brief, emailed
 Or use the launcher script:
 
 ```bash
-./scripts/run_local.sh eod     # or: news  |  both
+./scripts/run_local.sh scan    # or: eod | demo | news | both | serve
 ```
 
 If you don't configure `.env`, everything still runs and writes the dashboard to
@@ -62,13 +64,24 @@ sending.
 
 | Command | What it does |
 |---------|--------------|
-| `nifty-scanner run-eod [--demo] [--no-email]` | screener + sectors + dashboard, emailed |
+| `nifty-scanner run-scan [--demo] [--no-email]` | activity + momentum + strikes + dashboard |
+| `nifty-scanner run-eod [--demo] [--no-email]` | same as scan, emailed by default |
+| `nifty-scanner run-live [--demo] [--once] [--interval 60]` | Dhan live quotes + option chains |
+| `nifty-scanner serve [--live] [--port 8765]` | browse the local dashboard |
 | `nifty-scanner run-news [--demo] [--no-email]` | cues + news brief, emailed |
-| `nifty-scanner backfill [--days 420]` | (optional) pre-download history; run-eod does this automatically |
+| `nifty-scanner backfill [--days 420]` | (optional) pre-download history |
 | `nifty-scanner build-universe [--refresh]` | (optional) refresh the Nifty 500 list |
 
 `--demo` = offline synthetic data. `--no-email` = build files but don't send.
 `--deploy` = *also* upload the dashboard to a website via FTP (optional, see below).
+
+### Dashboard sections
+
+1. **Market activity** — advances/declines, top gainers/losers, unusual volume  
+2. **Momentum stocks** — short-horizon bullish / bearish ranked lists  
+3. **Option strike ideas** — ATM + defined-risk debit spreads (CE/PE) with suggested expiry  
+4. **Swing candidates** — stricter trend/continuation setups with ATR stops  
+5. **Sector rotation** — leaders/laggards + index-option structure notes
 
 ---
 
@@ -108,10 +121,28 @@ The EOD email includes the ranked table and attaches `screener.csv`.
 - **News** - free **RSS feeds** grouped India / Global / Commodities / Currencies.
 - **Overnight cues** - via `yfinance` (indices, crude, gold, USD/INR, India VIX).
 
-**Options note:** free live option chains / greeks / IV aren't reliably available,
-so sectorial options output is directional-bias + defined-risk structure (e.g. "IT
-leading -> bull call spread on NIFTY IT"). Exact strikes/greeks need a broker API
-(Kite/Upstox/Dhan) - a clean future upgrade.
+### Live mode with Dhan
+
+1. In the Dhan app/web: **Profile → Access DhanHQ APIs** → copy **Client ID** and generate an **access token** (usually regenerates daily).
+2. Put them in `.env`:
+   ```
+   DHAN_CLIENT_ID=your_client_id
+   DHAN_ACCESS_TOKEN=your_access_token
+   ```
+3. Run during market hours:
+   ```bash
+   nifty-scanner run-live                 # refresh every 60s
+   # other terminal:
+   nifty-scanner serve --live
+   ```
+   Offline UI test: `nifty-scanner run-live --demo --once`
+
+Live mode scans the **Nifty 50** universe (rate-limit friendly), ranks intraday
+momentum from day-change / move-from-open / volume, and picks debit-spread
+strikes from the **live Dhan option chain** (NIFTY, BANKNIFTY + top F&O names).
+
+**EOD options note:** without Dhan, strike ideas snap EOD spot to typical NSE
+intervals. Always confirm strikes, OI, IV and lot size before entering.
 
 ---
 
@@ -167,7 +198,7 @@ not needed for manual PC use.
 ├── src/nifty_scanner/
 │   ├── config.py  utils.py  indicators.py  cli.py
 │   ├── data/{bhavcopy,universe,history}.py
-│   ├── screener/{swing,sectors}.py
+│   ├── screener/{activity,momentum,strikes,swing,sectors}.py
 │   ├── news/{feeds,cues}.py
 │   └── report/{render,email_send,deploy}.py
 ├── web/templates/*.html  web/static/style.css
